@@ -7,17 +7,20 @@ similarity over a genre + review-sentiment feature space. The notebook's
 data-cleaning, sentiment, and recommender logic has been extracted into
 `app/data_pipeline.py`, `app/sentiment.py`, and `app/recommender.py`, and is
 precomputed once into artifacts the API loads at startup instead of
-recomputing on every boot.
+recomputing on every boot. A small static frontend (`frontend/`) is served
+by the same app for trying it out in a browser without touching `curl`.
 
 ## Project layout
 
 ```
 app/
-  main.py           FastAPI app + routes only
+  main.py           FastAPI app + routes, serves frontend/ as static files
   data_pipeline.py  loading, cleaning, feature engineering (the notebook's logic)
   sentiment.py      VADER wrapper
   recommender.py    cosine-similarity recommender
   models.py         Pydantic request/response models
+frontend/
+  index.html, style.css, app.js   plain HTML/CSS/JS demo UI, no build step
 scripts/
   download_data.py         pulls the raw Kaggle CSVs into data/raw/
   generate_sample_data.py  schema-identical synthetic data for local dev, written to data/sample_raw/
@@ -76,7 +79,20 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Then open `http://127.0.0.1:8000/docs` for interactive docs.
+Then open `http://127.0.0.1:8000/` for the demo frontend, or
+`http://127.0.0.1:8000/docs` for interactive API docs. (`GET /api` returns
+the old plain-JSON root message, now that `/` serves the frontend.)
+
+## Frontend
+
+`frontend/` is a plain HTML/CSS/JS page (no build step, no framework) served
+by the FastAPI app itself via `StaticFiles`, mounted at `/`. It has a
+textbox for sentiment analysis and a title-search box (backed by the new
+`GET /books?q=` endpoint) for picking a book and viewing its recommendations.
+It's just a thin client over the existing JSON endpoints — open the browser
+devtools network tab to see it calling `/sentiment`, `/books`, and
+`/recommend/{book_id}` directly. CORS is wide open (`allow_origins=["*"]`)
+so it also works if served from anywhere else during development.
 
 ## Example requests
 
@@ -98,6 +114,13 @@ curl -s -X POST http://127.0.0.1:8000/sentiment \
 
 curl -s -X POST http://127.0.0.1:8000/sentiment -d '{"text": "   "}'
 # {"detail":"Text cannot be empty."}
+
+curl -s "http://127.0.0.1:8000/books?q=dune&limit=3"
+# [
+#   {"book_id":"0553526677","title":"House Corrino (Dune: House Trilogy, Book 3)","genre":"Fiction"},
+#   {"book_id":"0765305852","title":"The Butlerian Jihad (Legends of Dune, Book 1)","genre":"Fiction"},
+#   {"book_id":"0765305860","title":"The Machine Crusade (Legends of Dune, Book 2)","genre":"Fiction"}
+# ]
 
 curl -s "http://127.0.0.1:8000/recommend/1573451657?top_n=3"
 # [

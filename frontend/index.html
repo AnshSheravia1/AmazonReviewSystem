@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Amazon Review Intelligence</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Amazon Review Intelligence</h1>
+    <p class="subtitle">VADER sentiment scoring &amp; genre-based book recommendations</p>
+    <div id="health" class="health">checking status&hellip;</div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Sentiment Analysis</h2>
+      <p class="hint">Paste a review, get its VADER compound score and label.</p>
+      <textarea id="sentiment-text" rows="4" placeholder="I absolutely loved this book..."></textarea>
+      <button id="sentiment-submit">Analyze</button>
+      <div id="sentiment-result" class="result" hidden></div>
+    </section>
+
+    <section class="card">
+      <h2>Book Recommendations</h2>
+      <p class="hint">Search for a book, then get similar titles by genre.</p>
+      <input id="book-search" type="text" placeholder="Search by title (e.g. Dune)" autocomplete="off" />
+      <ul id="book-suggestions" class="suggestions" hidden></ul>
+
+      <div id="selected-book" class="selected-book" hidden>
+        Selected: <strong id="selected-title"></strong>
+        <span id="selected-id" class="muted"></span>
+        <label for="top-n">Show
+          <select id="top-n">
+            <option value="3" selected>3</option>
+            <option value="5">5</option>
+            <option value="10">10</option>
+          </select>
+          recommendations
+        </label>
+        <button id="recommend-submit">Recommend</button>
+      </div>
+
+      <div id="recommend-result"></div>
+    </section>
+  </main>
+
+  <footer>
+    <a href="/docs" target="_blank" rel="noopener">API docs</a>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

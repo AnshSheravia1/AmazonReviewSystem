@@ -54,3 +54,21 @@ def test_recommend_valid_book_id(client):
 def test_recommend_invalid_book_id(client):
     resp = client.get("/recommend/does-not-exist")
     assert resp.status_code == 404
+
+
+def test_books_search_by_title(client):
+    catalog = pd.read_parquet("data/processed/books_catalog.parquet")
+    title = catalog.iloc[0]["title"]
+    query = title[:5]
+
+    resp = client.get("/books", params={"q": query})
+    assert resp.status_code == 200
+    results = resp.json()
+    assert len(results) > 0
+    assert all(query.lower() in r["title"].lower() for r in results)
+
+
+def test_frontend_is_served_at_root(client):
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]

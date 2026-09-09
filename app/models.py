@@ -18,6 +18,12 @@ class RecommendationResponse(BaseModel):
     similarity_score: float
 
 
+class BookSummary(BaseModel):
+    book_id: str
+    title: str
+    genre: str
+
+
 class HealthResponse(BaseModel):
     status: str
     books_loaded: int

@@ -3,9 +3,12 @@ from pathlib import Path
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from scipy import sparse
 
 from .models import (
+    BookSummary,
     HealthResponse,
     RecommendationResponse,
     SentimentRequest,
@@ -17,6 +20,7 @@ from .sentiment import analyze
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "processed"
 CATALOG_PATH = DATA_DIR / "books_catalog.parquet"
 FEATURES_PATH = DATA_DIR / "feature_matrix.npz"
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
 state: dict = {"catalog": None, "features": None}
 
@@ -37,10 +41,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# The bundled frontend is plain static JS calling this API from the browser;
+# wide-open CORS is fine here since there's no auth/cookies to protect.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.get("/")
+
+@app.get("/api")
 def root():
-    return {"message": "Amazon Review Intelligence API. See /docs for usage."}
+    return {"message": "Amazon Review Intelligence API. See /docs for usage, or /ui for the demo frontend."}
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -59,6 +72,22 @@ def get_sentiment(request: SentimentRequest):
 
     compound, label = analyze(request.text)
     return SentimentResponse(text=request.text, compound_score=compound, sentiment=label)
+
+
+@app.get("/books", response_model=list[BookSummary])
+def list_books(q: str = "", limit: int = 20):
+    catalog = state["catalog"]
+    limit = max(1, min(limit, 100))
+
+    matches = catalog
+    if q.strip():
+        matches = catalog[catalog["title"].str.contains(q, case=False, na=False)]
+
+    rows = matches.head(limit)
+    return [
+        BookSummary(book_id=str(row["book_id"]), title=row["title"], genre=row["genre"])
+        for _, row in rows.iterrows()
+    ]
 
 
 @app.get("/recommend/{book_id}", response_model=list[RecommendationResponse])
@@ -85,3 +114,7 @@ def recommend(book_id: str, top_n: int = 3):
             )
         )
     return results
+
+
+# Catch-all: must be mounted last so the API routes above take precedence.
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
