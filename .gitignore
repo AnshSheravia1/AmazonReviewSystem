@@ -1,0 +1,21 @@
+# Raw dataset (3M rows / large Kaggle download) — regenerate with scripts/download_data.py
+data/raw/
+data/sample_raw/
+
+# Secrets
+.env
+*.env
+kaggle.json
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Editors / OS
+.vscode/
+.DS_Store
+
+# Local Claude Code settings
+.claude/
