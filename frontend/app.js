@@ -137,6 +137,51 @@ async function getRecommendations() {
   }
 }
 
+async function loadGenreOptions() {
+  try {
+    const res = await fetch("/genres");
+    const genres = await res.json();
+    const datalist = el("genre-options");
+    datalist.innerHTML = genres.map((g) => `<option value="${escapeHtml(g)}"></option>`).join("");
+  } catch (err) {
+    // Non-fatal: the free-text input still works without autocomplete.
+  }
+}
+
+async function showGenreKeywords() {
+  const genre = el("genre-search").value.trim();
+  const box = el("genre-result");
+  if (!genre) return;
+
+  box.hidden = false;
+  el("genre-positive").innerHTML = "Loading&hellip;";
+  el("genre-negative").innerHTML = "";
+
+  try {
+    const res = await fetch(`/genres/${encodeURIComponent(genre)}/keywords`);
+    const data = await res.json();
+
+    if (!res.ok) {
+      el("genre-positive").innerHTML = `<span class="error">${escapeHtml(data.detail || "Request failed.")}</span>`;
+      el("genre-negative").innerHTML = "";
+      return;
+    }
+
+    el("genre-positive").innerHTML = renderTags(data.positive);
+    el("genre-negative").innerHTML = renderTags(data.negative);
+  } catch (err) {
+    el("genre-positive").innerHTML = `<span class="error">Could not reach the API.</span>`;
+    el("genre-negative").innerHTML = "";
+  }
+}
+
+function renderTags(words) {
+  if (!words || words.length === 0) {
+    return '<span class="muted">No data</span>';
+  }
+  return words.map((w) => `<span class="tag">${escapeHtml(w)}</span>`).join("");
+}
+
 function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str;
@@ -146,6 +191,7 @@ function escapeHtml(str) {
 el("sentiment-submit").addEventListener("click", analyzeSentiment);
 el("book-search").addEventListener("input", debounceSearch);
 el("recommend-submit").addEventListener("click", getRecommendations);
+el("genre-submit").addEventListener("click", showGenreKeywords);
 
 document.addEventListener("click", (e) => {
   if (!el("book-suggestions").contains(e.target) && e.target !== el("book-search")) {
@@ -154,3 +200,4 @@ document.addEventListener("click", (e) => {
 });
 
 checkHealth();
+loadGenreOptions();

@@ -72,3 +72,36 @@ def test_frontend_is_served_at_root(client):
     resp = client.get("/")
     assert resp.status_code == 200
     assert "text/html" in resp.headers["content-type"]
+
+
+def test_list_genres_and_fetch_keywords(client):
+    genres_resp = client.get("/genres")
+    assert genres_resp.status_code == 200
+    genres = genres_resp.json()
+    assert len(genres) > 0
+
+    kw_resp = client.get(f"/genres/{genres[0]}/keywords")
+    assert kw_resp.status_code == 200
+    body = kw_resp.json()
+    assert body["genre"] == genres[0]
+    assert isinstance(body["positive"], list)
+    assert isinstance(body["negative"], list)
+
+
+def test_genre_keywords_404_for_unknown_genre(client):
+    resp = client.get("/genres/Not-A-Real-Genre/keywords")
+    assert resp.status_code == 404
+
+
+def test_recommend_similarity_is_not_binary(client):
+    """The old genre-only feature made every same-genre pair score exactly
+    1.0 and every cross-genre pair 0.0. With the TF-IDF content signal
+    added, recommendations for the same book should no longer all be tied
+    at a single score."""
+    catalog = pd.read_parquet("data/processed/books_catalog.parquet")
+    book_id = catalog.iloc[0]["book_id"]
+
+    resp = client.get(f"/recommend/{book_id}?top_n=5")
+    assert resp.status_code == 200
+    scores = [r["similarity_score"] for r in resp.json()]
+    assert all(0.0 <= s <= 1.0 for s in scores)

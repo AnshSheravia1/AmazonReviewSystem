@@ -8,12 +8,19 @@ review-sentiment-analysis-and-recommender-system.ipynb (cells 2, 9, 13-27,
   - book_ratings: Id, Title, Price, User_id, profileName,
                    review/helpfulness, review/score, review/time,
                    review/summary, review/text
+
+Two granularities are produced:
+  - build_review_level_frame: one row per review, with per-review VADER
+    sentiment, cleaned genre/author, kept around for genre-level keyword
+    extraction (app/keywords.py), which needs individual review text.
+  - build_book_catalog: the review-level frame collapsed to one row per
+    book, which is what the recommender and API serve.
 """
 from __future__ import annotations
 
 import pandas as pd
 
-from .sentiment import score_text, sentiment_category
+from .sentiment import label_from_compound, score_text, sentiment_category
 
 FILL_UNKNOWN_COLS = [
     "description", "authors", "image", "previewLink",
@@ -26,11 +33,9 @@ RATING_ORDINAL_MAP = {"Poor": 1, "Average": 2, "Good": 3, "Very Good": 4, "Must 
 
 
 def load_and_merge(books_data_path: str, ratings_path: str) -> pd.DataFrame:
-    # build_book_catalog only ever reads Id/Title/review-score/review-summary
-    # from the ratings file and authors/categories from the books file, so
-    # only those columns are loaded — the full 3M-row ratings CSV (with
-    # review/text, review/helpfulness, etc. included) is too large to hold
-    # in memory in one pass otherwise.
+    # Only the columns build_review_level_frame actually uses are loaded —
+    # the full 3M-row ratings CSV (with review/text, review/helpfulness,
+    # etc. included) is too large to hold in memory in one pass otherwise.
     book_data = pd.read_csv(books_data_path, usecols=["Title", "authors", "categories"])
     book_ratings = pd.read_csv(
         ratings_path,
@@ -68,14 +73,14 @@ def _categorize_rating(avg_rating: float) -> str:
         return "Must Read"
 
 
-def build_book_catalog(
+def build_review_level_frame(
     merged: pd.DataFrame,
     sample_size: int | None = 50000,
     random_state: int = 42,
 ) -> pd.DataFrame:
-    """Collapses the review-level merged frame into one row per book_id
-    (Amazon's Id), with an aggregate sentiment score and the genre/rating
-    features used by the recommender."""
+    """Cleans the merged review-level frame and attaches per-review VADER
+    sentiment, cleaned Genre/Author, and a positive/negative/neutral label —
+    the granularity app/keywords.py needs (per-review text, not per-book)."""
     df = merged.copy()
 
     df["ratingsCount"] = df.groupby("Id")["Id"].transform("count")
@@ -87,6 +92,7 @@ def build_book_catalog(
     df["review/summary"] = df["review/summary"].fillna("Unknown")
     df.loc[df["review/summary"].astype(str).str.strip() == "", "review/summary"] = "Unknown"
     df["review_compound"] = df["review/summary"].apply(score_text)
+    df["sentiment_label"] = df["review_compound"].apply(label_from_compound)
 
     df["Genre"] = _clean_bracketed(df["categories"])
     df["Author"] = _clean_bracketed(df["authors"])
@@ -102,8 +108,16 @@ def build_book_catalog(
         df.loc[unknown_mask, "Author"].map(author_genre_map).fillna("Unknown")
     )
 
+    return df.reset_index(drop=True)
+
+
+def build_book_catalog(review_df: pd.DataFrame) -> pd.DataFrame:
+    """Collapses the review-level frame into one row per book_id (Amazon's
+    Id), with an aggregate sentiment score, a pooled review-text blob (for
+    the content-based similarity signal), and the genre/rating features
+    used by the recommender."""
     catalog = (
-        df.groupby("Id")
+        review_df.groupby("Id")
         .agg(
             title=("Title", "first"),
             genre=("Genre", "first"),
@@ -111,6 +125,7 @@ def build_book_catalog(
             avg_rating=("avgRating", "first"),
             avg_sentiment_score=("review_compound", "mean"),
             review_count=("review_compound", "size"),
+            review_text_blob=("review/summary", lambda s: " ".join(s.astype(str))),
         )
         .reset_index()
         .rename(columns={"Id": "book_id"})

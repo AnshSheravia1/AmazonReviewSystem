@@ -1,3 +1,4 @@
+import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from scipy import sparse
 
 from .models import (
     BookSummary,
+    GenreKeywords,
     HealthResponse,
     RecommendationResponse,
     SentimentRequest,
@@ -20,18 +22,21 @@ from .sentiment import analyze
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "processed"
 CATALOG_PATH = DATA_DIR / "books_catalog.parquet"
 FEATURES_PATH = DATA_DIR / "feature_matrix.npz"
+KEYWORDS_PATH = DATA_DIR / "genre_keywords.json"
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
-state: dict = {"catalog": None, "features": None}
+state: dict = {"catalog": None, "features": None, "keywords": {}}
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     state["catalog"] = pd.read_parquet(CATALOG_PATH)
     state["features"] = sparse.load_npz(FEATURES_PATH)
+    state["keywords"] = json.loads(KEYWORDS_PATH.read_text()) if KEYWORDS_PATH.exists() else {}
     yield
     state["catalog"] = None
     state["features"] = None
+    state["keywords"] = {}
 
 
 app = FastAPI(
@@ -62,6 +67,7 @@ def health():
     return HealthResponse(
         status="ok" if catalog is not None else "not_loaded",
         books_loaded=int(len(catalog)) if catalog is not None else 0,
+        genres_with_keywords=len(state["keywords"]),
     )
 
 
@@ -88,6 +94,26 @@ def list_books(q: str = "", limit: int = 20):
         BookSummary(book_id=str(row["book_id"]), title=row["title"], genre=row["genre"])
         for _, row in rows.iterrows()
     ]
+
+
+@app.get("/genres", response_model=list[str])
+def list_genres():
+    return sorted(state["keywords"].keys())
+
+
+@app.get("/genres/{genre}/keywords", response_model=GenreKeywords)
+def genre_keywords(genre: str):
+    entry = state["keywords"].get(genre)
+    if entry is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No keyword data for genre {genre!r} (either unknown, or too few reviews).",
+        )
+    return GenreKeywords(
+        genre=genre,
+        positive=entry.get("positive", []),
+        negative=entry.get("negative", []),
+    )
 
 
 @app.get("/recommend/{book_id}", response_model=list[RecommendationResponse])

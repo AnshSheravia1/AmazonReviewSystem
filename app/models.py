@@ -24,6 +24,13 @@ class BookSummary(BaseModel):
     genre: str
 
 
+class GenreKeywords(BaseModel):
+    genre: str
+    positive: list[str]
+    negative: list[str]
+
+
 class HealthResponse(BaseModel):
     status: str
     books_loaded: int
+    genres_with_keywords: int

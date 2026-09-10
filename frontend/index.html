@@ -9,7 +9,7 @@
 <body>
   <header>
     <h1>Amazon Review Intelligence</h1>
-    <p class="subtitle">VADER sentiment scoring &amp; genre-based book recommendations</p>
+    <p class="subtitle">VADER sentiment scoring, content-aware book recommendations &amp; genre keyword mining</p>
     <div id="health" class="health">checking status&hellip;</div>
   </header>
 
@@ -24,7 +24,7 @@
 
     <section class="card">
       <h2>Book Recommendations</h2>
-      <p class="hint">Search for a book, then get similar titles by genre.</p>
+      <p class="hint">Search for a book, then get similar titles by genre, rating, and review-text content.</p>
       <input id="book-search" type="text" placeholder="Search by title (e.g. Dune)" autocomplete="off" />
       <ul id="book-suggestions" class="suggestions" hidden></ul>
 
@@ -43,6 +43,24 @@
       </div>
 
       <div id="recommend-result"></div>
+    </section>
+
+    <section class="card">
+      <h2>Genre Insights</h2>
+      <p class="hint">What readers actually praise vs. complain about in a genre &mdash; mined from review text with TF-IDF, not hardcoded.</p>
+      <input id="genre-search" type="text" placeholder="Search genres (e.g. Mystery)" autocomplete="off" list="genre-options" />
+      <datalist id="genre-options"></datalist>
+      <button id="genre-submit">Show keywords</button>
+      <div id="genre-result" class="genre-result" hidden>
+        <div class="genre-column">
+          <h3 class="positive">Praised</h3>
+          <div id="genre-positive" class="tag-list"></div>
+        </div>
+        <div class="genre-column">
+          <h3 class="negative">Complained about</h3>
+          <div id="genre-negative" class="tag-list"></div>
+        </div>
+      </div>
     </section>
   </main>
 
